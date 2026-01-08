@@ -1,3 +1,6 @@
+import nltk
+nltk.download('punkt')
+nltk.download('stopwords')
 import streamlit as st
 import pandas as pd
 import re
@@ -91,3 +94,4 @@ if st.button("🔍 Check News"):
 
 st.markdown("---")
 st.markdown("👨‍💻 **Project by Harsh Saxena**")
+

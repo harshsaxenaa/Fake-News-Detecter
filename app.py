@@ -1,97 +1,67 @@
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
 import streamlit as st
-import pandas as pd
+import pickle
 import re
-import nltk
-from nltk.corpus import stopwords
 
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-
-# Download stopwords (one time)
-nltk.download('stopwords')
-STOPWORDS = set(stopwords.words('english'))
-
-# =========================
-# Text Cleaning Function (GLOBAL)
-# =========================
-def clean_text(text):
-    text = str(text).lower()
-    text = re.sub(r'\[.*?\]', '', text)
-    text = re.sub(r'[^a-zA-Z]', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
-
-    words = text.split()
-    words = [word for word in words if word not in STOPWORDS]
-    return ' '.join(words)
-
-# =========================
-# Streamlit Page Config
-# =========================
-st.set_page_config(page_title="Fake News Detector", page_icon="📰")
-st.title("📰 Fake News Detection System")
-st.write("Enter any news text and check whether it is **REAL or FAKE**.")
-
-# =========================
-# Load & Train Model (CACHED SAFE WAY)
-# =========================
+# ==============================
+# Load trained model & vectorizer
+# ==============================
 @st.cache_resource
-def train_model():
-    fake = pd.read_csv("dataset/Fake.csv")
-    true = pd.read_csv("dataset/True.csv")
-
-    fake["label"] = 0
-    true["label"] = 1
-
-    data = pd.concat([fake, true], axis=0)
-    data = data.sample(frac=1).reset_index(drop=True)
-
-    # Reduce size for speed
-    data = data.sample(8000).reset_index(drop=True)
-
-    data["clean_text"] = data["text"].apply(clean_text)
-
-    X = data["clean_text"]
-    y = data["label"]
-
-    vectorizer = TfidfVectorizer(max_features=3000)
-    X = vectorizer.fit_transform(X)
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X_train, y_train)
-
+def load_model():
+    model = pickle.load(open("model.pkl", "rb"))
+    vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
     return model, vectorizer
 
-with st.spinner("Training model, please wait..."):
-    model, vectorizer = train_model()
+model, vectorizer = load_model()
 
-st.success("✅ Model loaded successfully!")
+# ==============================
+# Text cleaning function
+# ==============================
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r"[^a-z\s]", "", text)
+    return text
 
-# =========================
-# User Input Section
-# =========================
-news_input = st.text_area("📝 Enter News Text Here:")
+# ==============================
+# Streamlit UI
+# ==============================
+st.set_page_config(
+    page_title="Fake News Detection System",
+    page_icon="📰",
+    layout="centered"
+)
 
+st.title("📰 Fake News Detection System")
+st.write("Enter any news text and check whether it is **REAL** or **FAKE**.")
+
+st.success("Model loaded successfully!")
+
+# ==============================
+# User input
+# ==============================
+news_text = st.text_area(
+    "📝 Enter News Text Here:",
+    height=150,
+    placeholder="Type or paste news content here..."
+)
+
+# ==============================
+# Prediction
+# ==============================
 if st.button("🔍 Check News"):
-    if news_input.strip() == "":
+    if news_text.strip() == "":
         st.warning("Please enter some news text!")
     else:
-        cleaned = clean_text(news_input)
-        vector = vectorizer.transform([cleaned])
-        result = model.predict(vector)[0]
+        cleaned_text = clean_text(news_text)
+        vector_input = vectorizer.transform([cleaned_text])
+        prediction = model.predict(vector_input)[0]
 
-        if result == 1:
+        if prediction == 1:
             st.success("✅ This news is REAL")
         else:
             st.error("❌ This news is FAKE")
 
+# ==============================
+# Footer
+# ==============================
 st.markdown("---")
 st.markdown("👨‍💻 **Project by Harsh Saxena**")
-
